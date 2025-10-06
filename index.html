@@ -342,11 +342,11 @@
       const MODEL_INPUT_SIZE = 224; 
 
       // ----------------------------------------------------------------------
-      // >>> 🎯 STEP 1: CORRECTED MODEL URL PATH <<<
+      // >>> 🎯 STEP 1: CORRECTED MODEL URL PATH TO ABSOLUTE URL <<<
       // ----------------------------------------------------------------------
-      // The index.html and model.json are in the SAME folder, so we use the 
-      // relative path './' to look in the current directory.
-      const MODEL_URL = "./"; 
+      // Using the absolute URL for the GitHub Pages deployment.
+      // Format: https://[USERNAME].github.io/[REPOSITORY-NAME]/
+      const MODEL_URL = "https://notseira.github.io/waste-classifier-model-files/"; 
       const MODEL_FILENAME = "model.json"; 
       // ----------------------------------------------------------------------
 
@@ -373,6 +373,8 @@
         const MAX_RETRIES = 5;
         let attempt = 0;
 
+        const fullModelPath = MODEL_URL + MODEL_FILENAME;
+
         // Basic check for placeholder (already corrected, but good practice)
         if (MODEL_URL.includes("YOUR_HOSTED_MODEL_URL")) {
             console.error("⚠️ Model not loaded: Please replace 'YOUR_HOSTED_MODEL_URL' with your actual hosted model link.");
@@ -384,12 +386,12 @@
         while (attempt < MAX_RETRIES) {
           attempt++;
           resultBox.innerHTML = `<div class="result-header">Loading Model... (Attempt ${attempt}/${MAX_RETRIES})</div>
-                                 <div class="muted">Fetching files from host: <strong>${MODEL_URL}${MODEL_FILENAME}</strong>. Please wait.</div>`;
+                                 <div class="muted">Fetching files from: <strong>${fullModelPath}</strong>. Please wait.</div>`;
+          console.log(`Attempting to load model from: ${fullModelPath}`);
 
           try {
             // TFJS will attempt to load: [Base Path] + [Model Filename]
-            // E.g., ./model.json (which points to the file in the same folder)
-            model = await tf.loadLayersModel(MODEL_URL + MODEL_FILENAME);
+            model = await tf.loadLayersModel(fullModelPath);
             
             resultBox.innerHTML = `<div class="result-header">Ready</div>
                                    <div class="muted">Model loaded with ${LABELS.length} classes. Upload an image or start the webcam, then press Scan.</div>`;
@@ -404,7 +406,7 @@
             // This is the common failure mode if files are missing/misnamed
             if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
                 resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found!</div>
-                                       <div class="muted">The file <strong>${MODEL_URL}${MODEL_FILENAME}</strong> could not be found. Please double-check the filename's case and ensure the files are in the same folder as index.html.</div>`;
+                                       <div class="muted">The file <strong>${fullModelPath}</strong> could not be found. Please double-check the filename's case and ensure the files are in the same folder as index.html.</div>`;
                 return; // Exit immediately on a clear 404/file error, no need to retry
             }
 
