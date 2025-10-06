@@ -347,12 +347,11 @@
       // This MUST be the public URL to the folder containing your 
       // 'model.json' and all 'group1-shardXofY.bin' files.
       //
-      // Using a RELATIVE path because the index.html is now hosted in the 
-      // same folder as the model files on GitHub Pages.
-      const MODEL_URL = "./"; 
-      // NOTE: We are using 'model.json' (capital 'J') to match the uploaded file name on your GitHub repository.
-      const MODEL_FILENAME = "model.json"; 
-      
+      // IMPORTANT: We are now explicitly setting the folder path 
+      // based on your GitHub repository name: 'waste-classifier-model-files'
+      const MODEL_FOLDER_NAME = "waste-classifier-model-files/"; 
+      const MODEL_URL = MODEL_FOLDER_NAME; // Use this as the base path
+      const MODEL_FILENAME = "model.json"; // Using standard lowercase filename
       // ----------------------------------------------------------------------
 
       // ----------------------------------------------------------------------
@@ -389,11 +388,11 @@
         while (attempt < MAX_RETRIES) {
           attempt++;
           resultBox.innerHTML = `<div class="result-header">Loading Model... (Attempt ${attempt}/${MAX_RETRIES})</div>
-                                 <div class="muted">Fetching files from host using native TFJS. Please wait.</div>`;
+                                 <div class="muted">Fetching files from host: <strong>${MODEL_URL}</strong>. Please wait.</div>`;
 
           try {
-            // Using tf.loadLayersModel, which directly loads the model architecture and weights
-            // It automatically finds the sharded files (group1-shardXofY.bin) referenced in model.json
+            // TFJS will attempt to load: [Base Path] + [Model Filename]
+            // E.g., waste-classifier-model-files/model.json
             model = await tf.loadLayersModel(MODEL_URL + MODEL_FILENAME);
             
             resultBox.innerHTML = `<div class="result-header">Ready</div>
@@ -409,7 +408,7 @@
             // Check for specific 404/file not found error
             if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
                 resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found!</div>
-                                       <div class="muted">The file <strong>${MODEL_FILENAME}</strong> could not be found. Check the console for the full path requested and verify the filename's case and location in your GitHub repository.</div>`;
+                                       <div class="muted">The file <strong>${MODEL_URL}${MODEL_FILENAME}</strong> could not be found. Check the console and verify the filename's case and location in your GitHub repository.</div>`;
                 return; // Exit immediately on a clear 404/file error, no need to retry
             }
 
