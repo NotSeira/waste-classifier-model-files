@@ -349,7 +349,9 @@
       //
       // Using a RELATIVE path because the index.html is now hosted in the 
       // same folder as the model files on GitHub Pages.
-      const MODEL_URL = "./"; // Changed to relative path
+      // NOTE: We are enforcing lowercase for 'model.json' below.
+      const MODEL_URL = "./"; 
+      const MODEL_FILENAME = "model.json"; // Enforce lowercase file name
       
       // ----------------------------------------------------------------------
 
@@ -372,36 +374,50 @@
       };
 
       // Load model silently
-      (async function initModel() {
-        try {
-          // Basic check for placeholder
-          if (MODEL_URL.includes("YOUR_HOSTED_MODEL_URL")) {
-              console.error("⚠️ Model not loaded: Please replace 'YOUR_HOSTED_MODEL_URL' with your actual hosted model link.");
-              resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model URL Missing!</div>
-                                   <div class="muted">Please update the <strong>MODEL_URL</strong> constant (around line 126) with your model's hosted public URL from GitHub Pages or another host.</div>`;
-              return;
-          }
+      async function initModel() {
+        const MAX_RETRIES = 5;
+        let attempt = 0;
 
-          resultBox.innerHTML = `<div class="result-header">Loading Model...</div>
+        // Basic check for placeholder
+        if (MODEL_URL.includes("YOUR_HOSTED_MODEL_URL")) {
+            console.error("⚠️ Model not loaded: Please replace 'YOUR_HOSTED_MODEL_URL' with your actual hosted model link.");
+            resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model URL Missing!</div>
+                                 <div class="muted">Please update the <strong>MODEL_URL</strong> constant (around line 126) with your model's hosted public URL from GitHub Pages or another host.</div>`;
+            return;
+        }
+
+        while (attempt < MAX_RETRIES) {
+          attempt++;
+          resultBox.innerHTML = `<div class="result-header">Loading Model... (Attempt ${attempt}/${MAX_RETRIES})</div>
                                  <div class="muted">Fetching files from host using native TFJS. Please wait.</div>`;
 
-          // Using tf.loadLayersModel, which directly loads the model architecture and weights
-          // It automatically finds the sharded files (group1-shardXofY.bin) referenced in model.json
-          // Note the use of "model.json" (lowercase) to match common conventions
-          model = await tf.loadLayersModel(MODEL_URL + "model.json");
-          
-          resultBox.innerHTML = `<div class="result-header">Ready</div>
-                                 <div class="muted">Model loaded with ${LABELS.length} classes. Upload an image or start the webcam, then press Scan.</div>`;
-          
-          console.log("Model loaded successfully.");
-          console.log("Hardcoded Model Labels:", LABELS);
+          try {
+            // Using tf.loadLayersModel, which directly loads the model architecture and weights
+            // It automatically finds the sharded files (group1-shardXofY.bin) referenced in model.json
+            model = await tf.loadLayersModel(MODEL_URL + MODEL_FILENAME);
+            
+            resultBox.innerHTML = `<div class="result-header">Ready</div>
+                                   <div class="muted">Model loaded with ${LABELS.length} classes. Upload an image or start the webcam, then press Scan.</div>`;
+            
+            console.log("Model loaded successfully.");
+            console.log("Hardcoded Model Labels:", LABELS);
+            return; // Exit function on success
 
-        } catch (e) {
-          console.error("Model load error:", e);
-          resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Error!</div>
-                                 <div class="muted">Could not load model. Check the <strong>MODEL_URL</strong> link in the console. (Is it a public, CORS-enabled host?)</div>`;
+          } catch (e) {
+            console.error(`Model load error on attempt ${attempt}:`, e);
+            if (attempt >= MAX_RETRIES) {
+              resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Error!</div>
+                                     <div class="muted">Could not load model after ${MAX_RETRIES} tries. Check the console and ensure the model files (especially <strong>${MODEL_FILENAME}</strong>) exist and match the filename exactly.</div>`;
+              return; // Exit function on final failure
+            }
+            
+            // Exponential backoff: Wait 1s, 2s, 4s, 8s, ...
+            const delay = Math.pow(2, attempt) * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
-      })();
+      }
+      initModel(); // Start the loading process immediately
 
       // ---- Drawing helpers
       function drawPlaceholder() {
@@ -691,7 +707,7 @@
                             <div class="result-header">Snapshot taken</div>
                             <div class="muted">Click Scan to classify and highlight the correct bin.</div>`;
           highlightBin(null);
-        }F
+        }
       });
 
       // ---- Scan current canvas
