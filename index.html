@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waste Classifier with Bin Indicators</title>
+    <style>
+      body {
+        font-family: "Inter", Arial, sans-serif;
+        text-align: center;
+        background: #1e1e2e; /* dark background */
+        color: #f5f5f5;
+        padding: 20px;
+      }
+      h1 {
+        margin: 0 0 12px;
+      }
+
+      /* One display box: the canvas */
+      #canvas {
+        border: 3px solid #3498db;
+        border-radius: 12px;
+        background: #2a2a3d;
+        margin: 15px auto;
+        display: block;
+        width: 100%; /* Make fluid */
+        max-width: 480px;
+        height: 360px;
+      }
+      /* Hidden video source */
+      #video {
+        display: none;
+      }
+
+      button,
+      input[type="file"] {
+        margin: 5px;
+        padding: 10px 20px;
+        font-size: 16px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        background: #3498db;
+        color: white;
+        transition: background 0.2s ease;
+      }
+      button:disabled {
+        background: #555;
+        cursor: not-allowed;
+      }
+      button:hover:not(:disabled),
+      input[type="file"]:hover {
+        background: #2980b9;
+      }
+
+      /* Result card */
+      #result {
+        margin: 16px auto 0;
+        padding: 14px 16px;
+        border-radius: 12px;
+        max-width: 520px;
+        text-align: left;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+        background: #263045;
+      }
+      .result-header {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .result-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 4px 0;
+      }
+      .tag {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 12px;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .cat-bio {
+        background: #27ae60;
+      } /* green */
+      .cat-rec {
+        background: #2980b9;
+      } /* blue */
+      .cat-haz {
+        background: #c0392b;
+      } /* red */
+      .cat-non {
+        background: #34495e;
+      } /* dark gray for non-recyclable */
+      .muted {
+        opacity: 0.9;
+      }
+
+      /* Bin indicators */
+      .bins {
+        max-width: 900px; /* Wider to fit 4 columns */
+        margin: 18px auto 0;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* 2 columns on mobile */
+        gap: 12px;
+      }
+      @media (min-width: 600px) {
+        .bins {
+          grid-template-columns: repeat(4, 1fr); /* 4 columns on desktop */
+        }
+      }
+      .bin-card {
+        background: #263045;
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+        border: 2px solid transparent;
+        transition: transform 0.15s ease, box-shadow 0.15s ease,
+          border-color 0.15s ease;
+      }
+      .bin-title {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-weight: 800;
+        font-size: 16px;
+        margin-bottom: 6px;
+      }
+      .bin-note {
+        font-size: 12px;
+        opacity: 0.9;
+      }
+
+      .bin-bio {
+        border-color: rgba(39, 174, 96, 0.35);
+      }
+      .bin-rec {
+        border-color: rgba(41, 128, 185, 0.35);
+      }
+      .bin-haz {
+        border-color: rgba(192, 57, 43, 0.35);
+      }
+      .bin-non {
+        border-color: rgba(52, 73, 94, 0.35);
+      } /* dark gray border */
+
+      /* active (highlight the correct bin) */
+      .bin-active.bin-bio {
+        box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.25),
+          0 0 24px rgba(39, 174, 96, 0.6);
+        transform: translateY(-2px);
+        animation: pulseBio 1.3s ease-in-out 2;
+      }
+      .bin-active.bin-rec {
+        box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.25),
+          0 0 24px rgba(41, 128, 185, 0.6);
+        transform: translateY(-2px);
+        animation: pulseRec 1.3s ease-in-out 2;
+      }
+      .bin-active.bin-haz {
+        box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.25),
+          0 0 24px rgba(192, 57, 43, 0.7);
+        transform: translateY(-2px);
+        animation: pulseHaz 1.3s ease-in-out 2;
+      }
+      .bin-active.bin-non {
+        box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.25),
+          0 0 24px rgba(52, 73, 94, 0.9);
+        transform: translateY(-2px);
+        animation: pulseNon 1.3s ease-in-out 2;
+      }
+
+      @keyframes pulseBio {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.25),
+            0 0 24px rgba(39, 174, 96, 0.6);
+        }
+        50% {
+          box-shadow: 0 0 0 5px rgba(39, 174, 96, 0.35),
+            0 0 36px rgba(39, 174, 96, 0.9);
+        }
+      }
+      @keyframes pulseRec {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.25),
+            0 0 24px rgba(41, 128, 185, 0.6);
+        }
+        50% {
+          box-shadow: 0 0 0 5px rgba(41, 128, 185, 0.35),
+            0 0 36px rgba(41, 128, 185, 0.9);
+        }
+      }
+      @keyframes pulseHaz {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.25),
+            0 0 24px rgba(192, 57, 43, 0.7);
+        }
+        50% {
+          box-shadow: 0 0 0 5px rgba(192, 57, 43, 0.35),
+            0 0 36px rgba(192, 57, 43, 1);
+        }
+      }
+      @keyframes pulseNon {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px rgba(52, 73, 94, 0.25),
+            0 0 24px rgba(52, 73, 94, 0.6);
+        }
+        50% {
+          box-shadow: 0 0 0 5px rgba(52, 73, 94, 0.35),
+            0 0 36px rgba(52, 73, 94, 0.9);
+        }
+      }
+
+      /* Legend */
+      .legend {
+        max-width: 720px;
+        margin: 14px auto 0;
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+        opacity: 0.95;
+      }
+      .legend .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 700;
+        font-size: 12px;
+        color: #fff;
+        padding: 6px 10px;
+        border-radius: 999px;
+      }
+      .legend .bio {
+        background: #27ae60;
+      }
+      .legend .rec {
+        background: #2980b9;
+      }
+      .legend .haz {
+        background: #c0392b;
+      }
+      .legend .non {
+        background: #34495e;
+      } /* dark gray for non-recyclable */
+    </style>
+  </head>
+  <body>
+    <h1>Waste Classifier (Pure TFJS)</h1>
+
+    <input type="file" id="fileUpload" accept="image/*" />
+    <button id="toggleCamera">Start Webcam</button>
+    <button id="capture" disabled>📸 Capture</button>
+    <button id="scan" disabled>🔍 Scan</button>
+    <button id="clear">🗑 Clear</button>
+
+    <!-- Single display area -->
+    <canvas id="canvas" width="480" height="360"></canvas>
+    <video id="video" width="480" height="360" autoplay playsinline></video>
+
+    <!-- Result card -->
+    <div id="result">
+      <div class="result-header">Ready</div>
+      <div class="muted">
+        Upload an image or start the webcam, then press Scan.
+      </div>
+    </div>
+
+    <!-- Visual bin indicators -->
+    <div class="bins" id="bins">
+      <div class="bin-card bin-bio" id="binBio">
+        <div class="bin-title">🌱 Biodegradable</div>
+        <div class="bin-note">Green bin — food scraps, paper, yard waste</div>
+      </div>
+      <div class="bin-card bin-rec" id="binRec">
+        <div class="bin-title">♻️ Recyclable</div>
+        <div class="bin-note">
+          Blue bin — plastic bottles, cans, clean glass
+        </div>
+      </div>
+      <div class="bin-card bin-non" id="binNon">
+        <div class="bin-title">🗑️ Non-Recyclable</div>
+        <div class="bin-note">
+          Black/Gray bin — unrecyclable plastic, dirty paper, textiles
+        </div>
+      </div>
+      <div class="bin-card bin-haz" id="binHaz">
+        <div class="bin-title">☢️ Hazardous</div>
+        <div class="bin-note">
+          Red bin — batteries, chemicals, e-waste, sharps
+        </div>
+      </div>
+    </div>
+
+    <!-- Color legend -->
+    <div class="legend">
+      <span class="pill bio">🌱 Green = Biodegradable</span>
+      <span class="pill rec">♻️ Blue = Recyclable</span>
+      <span class="pill non">🗑️ Gray = Non-Recyclable</span>
+      <span class="pill haz">☢️ Red = Hazardous</span>
+    </div>
+
+    <!-- TFJS Library (Teachable Machine library is removed) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+
+    <script>
+      // ---- DOM
+      const fileUpload = document.getElementById("fileUpload");
+      const toggleCameraBtn = document.getElementById("toggleCamera");
+      const captureBtn = document.getElementById("capture");
+      const scanBtn = document.getElementById("scan");
+      const clearBtn = document.getElementById("clear");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      const video = document.getElementById("video");
+      const resultBox = document.getElementById("result");
+
+      // bins
+      const binBio = document.getElementById("binBio");
+      const binRec = document.getElementById("binRec");
+      const binHaz = document.getElementById("binHaz");
+      const binNon = document.getElementById("binNon");
+
+      // ---- State
+      let stream = null;
+      let cameraActive = false;
+      let rafId = null;
+      let model = null;
+      
+      // The required input size for Teachable Machine models (MobileNet V2)
+      const MODEL_INPUT_SIZE = 224; 
+
+      // ----------------------------------------------------------------------
+      // >>> 🎯 STEP 1: PASTE YOUR HOSTED MODEL URL HERE <<<
+      // ----------------------------------------------------------------------
+      // This MUST be the public URL to the folder containing your 
+      // 'model.json' and all 'group1-shardXofY.bin' files.
+      //
+      // Using a RELATIVE path because the index.html is now hosted in the 
+      // same folder as the model files on GitHub Pages.
+      const MODEL_URL = "./"; // Changed to relative path
+      
+      // ----------------------------------------------------------------------
+
+      // ----------------------------------------------------------------------
+      // >>> 🎯 STEP 2: VERIFIED CLASS LABELS FROM YOUR NOTEBOOK <<<
+      // ----------------------------------------------------------------------
+      // Based on your notebook output (Classes found: {'Hazardous': 0, 'Non-Recyclable': 1, 'Organic': 2, 'Recyclable': 3}):
+      const LABELS = [
+        "Hazardous",       // Index 0
+        "Non-Recyclable",  // Index 1
+        "Organic",         // Index 2 (Maps to Biodegradable in the categorize function)
+        "Recyclable"       // Index 3
+      ];
+      // ----------------------------------------------------------------------
+
+      // Use this map to override the automatic categorization if your model's 
+      // output labels (top.className) need explicit mapping to a category.
+      const LABEL_TO_CATEGORY = {
+        // Example: "clean plastic bottle": "Recyclable", 
+      };
+
+      // Load model silently
+      (async function initModel() {
+        try {
+          // Basic check for placeholder
+          if (MODEL_URL.includes("YOUR_HOSTED_MODEL_URL")) {
+              console.error("⚠️ Model not loaded: Please replace 'YOUR_HOSTED_MODEL_URL' with your actual hosted model link.");
+              resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model URL Missing!</div>
+                                   <div class="muted">Please update the <strong>MODEL_URL</strong> constant (around line 126) with your model's hosted public URL from GitHub Pages or another host.</div>`;
+              return;
+          }
+
+          resultBox.innerHTML = `<div class="result-header">Loading Model...</div>
+                                 <div class="muted">Fetching files from host using native TFJS. Please wait.</div>`;
+
+          // Using tf.loadLayersModel, which directly loads the model architecture and weights
+          // It automatically finds the sharded files (group1-shardXofY.bin) referenced in model.json
+          // Note the use of "model.json" (lowercase) to match common conventions
+          model = await tf.loadLayersModel(MODEL_URL + "model.json");
+          
+          resultBox.innerHTML = `<div class="result-header">Ready</div>
+                                 <div class="muted">Model loaded with ${LABELS.length} classes. Upload an image or start the webcam, then press Scan.</div>`;
+          
+          console.log("Model loaded successfully.");
+          console.log("Hardcoded Model Labels:", LABELS);
+
+        } catch (e) {
+          console.error("Model load error:", e);
+          resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Error!</div>
+                                 <div class="muted">Could not load model. Check the <strong>MODEL_URL</strong> link in the console. (Is it a public, CORS-enabled host?)</div>`;
+        }
+      })();
+
+      // ---- Drawing helpers
+      function drawPlaceholder() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#2a2a3d";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#b0b6c3";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(
+          "Upload image or start webcam",
+          canvas.width / 2,
+          canvas.height / 2
+        );
+      }
+
+      function drawScaled(source) {
+        const cw = canvas.width,
+          ch = canvas.height;
+        const iw = source.videoWidth || source.naturalWidth || source.width;
+        const ih = source.videoHeight || source.naturalHeight || source.height;
+        if (!iw || !ih) return;
+
+        const scale = Math.min(cw / iw, ch / ih);
+        const w = iw * scale,
+          h = ih * scale;
+        const x = (cw - w) / 2,
+          y = (ch - h) / 2;
+
+        ctx.fillStyle = "#2a2a3d";
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.drawImage(source, x, y, w, h);
+      }
+
+      function iconForCategory(cat) {
+        return cat === "Biodegradable"
+          ? "🌱"
+          : cat === "Recyclable"
+          ? "♻️"
+          : cat === "Hazardous"
+          ? "☢️"
+          : "🗑️"; // Non-Recyclable
+      }
+
+      function colorForCategory(cat) {
+        return cat === "Biodegradable"
+          ? "#27ae60"
+          : cat === "Recyclable"
+          ? "#2980b9"
+          : cat === "Hazardous"
+          ? "#c0392b"
+          : "#34495e"; // Non-Recyclable
+      }
+
+      function highlightBin(category) {
+        // Remove all active states first
+        binBio.classList.remove("bin-active");
+        binRec.classList.remove("bin-active");
+        binHaz.classList.remove("bin-active");
+        binNon.classList.remove("bin-active");
+
+        // Add active state to the matching category
+        if (category === "Biodegradable") binBio.classList.add("bin-active");
+        else if (category === "Recyclable") binRec.classList.add("bin-active");
+        else if (category === "Hazardous") binHaz.classList.add("bin-active");
+        else if (category === "Non-Recyclable")
+          binNon.classList.add("bin-active");
+      }
+
+      function categorize(label) {
+        // Since the model now predicts the high-level category (Hazardous, Organic, etc.), 
+        // we map it directly to the bin categories used in the UI.
+        
+        // Map 'Organic' (Model Label) to 'Biodegradable' (UI Bin Name)
+        if (label === "Organic") return "Biodegradable";
+        
+        // Hazardous, Non-Recyclable, and Recyclable match the bin names directly.
+        if (label === "Hazardous" || label === "Recyclable" || label === "Non-Recyclable") {
+            return label;
+        }
+
+        // Default fallback
+        return "Non-Recyclable";
+      }
+
+      function renderResult(label, prob, category) {
+        const tagClass =
+          category === "Biodegradable"
+            ? "cat-bio"
+            : category === "Recyclable"
+            ? "cat-rec"
+            : category === "Hazardous"
+            ? "cat-haz"
+            : "cat-non"; // Added new class for Non-Recyclable
+
+        const icon = iconForCategory(category);
+
+        resultBox.innerHTML = `
+            <div class="result-header">${icon} ${label}</div>
+            <div class="result-row">
+                <div><strong>Confidence:</strong></div>
+                <div>${(prob * 100).toFixed(1)}%</div>
+            </div>
+            <div class="result-row">
+                <div><strong>Category:</strong></div>
+                <div><span class="tag ${tagClass}">${icon} ${category}</span></div>
+            </div>
+            <div class="muted" style="margin-top:6px;">For webcam: Capture a frame, then Scan.</div>
+            `;
+
+        const color = colorForCategory(category);
+        ctx.save();
+        ctx.restore();
+        drawBadge(`${category} • ${(prob * 100).toFixed(0)}%`, color, icon);
+        highlightBin(category);
+      }
+
+      // Badge (used ONLY after classification or low-confidence)
+      function drawBadge(text, color, icon = "") {
+        ctx.font = "bold 14px Arial";
+        const padX = 10,
+          h = 26;
+        const txt = icon ? `${icon} ${text}` : text;
+        const txtW = ctx.measureText(txt).width;
+        const w = txtW + padX * 2 + 6; // + color stripe
+        ctx.fillStyle = "rgba(0,0,0,.55)";
+        ctx.fillRect(8, 8, w, h);
+        ctx.fillStyle = color;
+        ctx.fillRect(8, 8, 6, h);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(txt, 8 + 6 + padX, 8 + h / 2 + 5);
+      }
+
+      async function classifyCanvas() {
+        if (!model) {
+            console.error("Classification failed: Model is not loaded yet.");
+            return;
+        } 
+        
+        resultBox.innerHTML = `<div class="result-header">Scanning...</div>
+                               <div class="muted">Analyzing image with hosted model.</div>`;
+        highlightBin(null); // Clear previous highlight
+        
+        // Use tf.tidy to clean up Tensors automatically
+        const top = tf.tidy(() => {
+            // 1. Convert canvas pixels to a Tensor
+            const tensor = tf.browser.fromPixels(canvas);
+            
+            // 2. Pre-processing: Resize to 224x224 (The size MobileNet models expect)
+            const resized = tf.image.resizeNearestNeighbor(tensor, [MODEL_INPUT_SIZE, MODEL_INPUT_SIZE]);
+            
+            // 3. Pre-processing: Normalize to [-1, 1] range. (Standard for MobileNet-based models)
+            // The formula is: ((pixel_value / 127.5) - 1)
+            const normalized = resized.toFloat().div(tf.scalar(127.5)).sub(tf.scalar(1));
+            
+            // 4. Add a batch dimension (1 image)
+            const batched = normalized.expandDims(0); 
+
+            // 5. Predict
+            const rawPrediction = model.predict(batched);
+
+            // 6. Get the raw probability data
+            // Use the softMax function to get probabilities, then dataSync() to retrieve values
+            const probabilities = rawPrediction.softmax().dataSync();
+
+            // 7. Convert to structured prediction array
+            const predictions = probabilities.map((prob, index) => ({
+                className: LABELS[index],
+                probability: prob,
+            }));
+
+            // 8. Sort and return the top prediction
+            predictions.sort((a, b) => b.probability - a.probability);
+            return predictions[0];
+        }); // End of tf.tidy
+
+        try {
+          if (!top || top.probability < 0.6) {
+            // Only show minimal low-conf badge
+            drawBadge("Unknown (low conf.)", "#7f8c8d", "❔");
+            resultBox.innerHTML = `
+              <div class="result-header">Unknown</div>
+              <div class="muted">Try a clearer photo or capture a sharper frame.</div>`;
+            highlightBin(null);
+            return;
+          }
+
+          const category = categorize(top.className);
+          renderResult(top.className, top.probability, category);
+        } catch (err) {
+          console.error("Scan error:", err);
+        }
+      }
+
+      // ---- Init
+      drawPlaceholder();
+
+      // ---- Upload (no pre-scan tags)
+      fileUpload.addEventListener("change", () => {
+        const file = fileUpload.files[0];
+        if (!file) return;
+        if (cameraActive) stopCamera();
+
+        const img = new Image();
+        img.onload = () => {
+          drawScaled(img); // show image only
+          scanBtn.disabled = false; // enable scan
+          captureBtn.disabled = true;
+          resultBox.innerHTML = `
+                      <div class="result-header">Image loaded</div>
+                      <div class="muted">Click Scan to classify and highlight the correct bin.</div>`;
+          highlightBin(null);
+          URL.revokeObjectURL(img.src);
+        };
+        img.onerror = () => console.error("Failed to load image."); // Changed alert to console.error
+        img.src = URL.createObjectURL(file);
+      });
+
+      // ---- Webcam (no pre-scan tags)
+      toggleCameraBtn.addEventListener("click", async () => {
+        if (!cameraActive) {
+          try {
+            // Use 'environment' for back camera on mobile
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: "environment" },
+              audio: false,
+            });
+            video.srcObject = stream;
+            cameraActive = true;
+            toggleCameraBtn.textContent = "Stop Webcam";
+            captureBtn.disabled = false;
+            scanBtn.disabled = true;
+            resultBox.innerHTML = `
+                              <div class="result-header">Webcam started</div>
+                              <div class="muted">Click Capture to freeze a frame, then Scan.</div>`;
+            highlightBin(null);
+            startLoop();
+          } catch (err) {
+            console.error("Error accessing webcam:", err.message); // Changed alert to console.error
+          }
+        } else {
+          stopCamera();
+        }
+      });
+
+      function startLoop() {
+        function draw() {
+          if (cameraActive && video.readyState >= 2) drawScaled(video);
+          rafId = requestAnimationFrame(draw);
+        }
+        if (rafId) cancelAnimationFrame(rafId);
+        draw();
+      }
+
+      function stopCamera() {
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = null;
+        }
+        cameraActive = false;
+        toggleCameraBtn.textContent = "Start Webcam";
+        captureBtn.disabled = true;
+        scanBtn.disabled = true;
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+        drawPlaceholder();
+        resultBox.innerHTML = `
+                          <div class="result-header">Ready</div>
+                          <div class="muted">Upload an image or start the webcam, then Scan.</div>`;
+        highlightBin(null);
+      }
+
+      // ---- Capture still (no pre-scan tags)
+      captureBtn.addEventListener("click", () => {
+        if (!cameraActive) return;
+        if (video.readyState >= 2) {
+          if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+          }
+          drawScaled(video); // show frozen frame, no badge
+          scanBtn.disabled = false;
+          resultBox.innerHTML = `
+                            <div class="result-header">Snapshot taken</div>
+                            <div class="muted">Click Scan to classify and highlight the correct bin.</div>`;
+          highlightBin(null);
+        }F
+      });
+
+      // ---- Scan current canvas
+      scanBtn.addEventListener("click", classifyCanvas);
+
+      // ---- Clear
+      clearBtn.addEventListener("click", () => {
+        drawPlaceholder();
+        resultBox.innerHTML = `
+                          <div class="result-header">Canvas cleared</div>
+                          <div class="muted">Upload an image or start the webcam again.</div>`;
+        scanBtn.disabled = true;
+        captureBtn.disabled = !cameraActive;
+        fileUpload.value = "";
+        highlightBin(null);
+        if (cameraActive && !rafId) startLoop();
+      });
+    </script>
+  </body>
+</html>
