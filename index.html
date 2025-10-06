@@ -338,7 +338,7 @@
       let rafId = null;
       let model = null;
       
-      // The required input size for Teachable Machine models (MobileNet V2)
+      // The required input size for MobileNet V2 models
       const MODEL_INPUT_SIZE = 224; 
 
       // ----------------------------------------------------------------------
@@ -349,9 +349,9 @@
       //
       // Using a RELATIVE path because the index.html is now hosted in the 
       // same folder as the model files on GitHub Pages.
-      // NOTE: We are enforcing lowercase for 'model.json' below.
       const MODEL_URL = "./"; 
-      const MODEL_FILENAME = "model.json"; // Enforce lowercase file name
+      // NOTE: We are using 'model.json' (capital 'J') to match the uploaded file name on your GitHub repository.
+      const MODEL_FILENAME = "model.json"; 
       
       // ----------------------------------------------------------------------
 
@@ -405,14 +405,22 @@
 
           } catch (e) {
             console.error(`Model load error on attempt ${attempt}:`, e);
+            
+            // Check for specific 404/file not found error
+            if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
+                resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found!</div>
+                                       <div class="muted">The file <strong>${MODEL_FILENAME}</strong> could not be found. Check the console for the full path requested and verify the filename's case and location in your GitHub repository.</div>`;
+                return; // Exit immediately on a clear 404/file error, no need to retry
+            }
+
             if (attempt >= MAX_RETRIES) {
               resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Error!</div>
                                      <div class="muted">Could not load model after ${MAX_RETRIES} tries. Check the console and ensure the model files (especially <strong>${MODEL_FILENAME}</strong>) exist and match the filename exactly.</div>`;
               return; // Exit function on final failure
             }
             
-            // Exponential backoff: Wait 1s, 2s, 4s, 8s, ...
-            const delay = Math.pow(2, attempt) * 1000;
+            // Exponential backoff: Wait 2s, 4s, 8s, 16s, ...
+            const delay = Math.pow(2, attempt) * 2000;
             await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
