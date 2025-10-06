@@ -338,16 +338,15 @@
       let rafId = null;
       let model = null;
       
-      // The required input size for MobileNet V2 s
+      // The required input size for MobileNet V2 models
       const MODEL_INPUT_SIZE = 224; 
 
       // ----------------------------------------------------------------------
-      // >>> 🎯 STEP 1: CORRECTED MODEL URL PATH TO ABSOLUTE URL <<<
+      // >>> 🎯 CRITICAL FIX: Ensure both constants are defined <<<
       // ----------------------------------------------------------------------
       // Using the absolute URL for the GitHub Pages deployment.
-      // Format: https://[USERNAME].github.io/[REPOSITORY-NAME]/
       const MODEL_URL = "https://notseira.github.io/waste-classifier/"; 
-      //const MODEL_FILENAME = "model.json"; 
+      const MODEL_FILENAME = "model.json"; // This declaration was likely missing, causing the ReferenceError
       // ----------------------------------------------------------------------
 
       // ----------------------------------------------------------------------
@@ -370,6 +369,14 @@
 
       // Load model silently
       async function initModel() {
+        // Ensure constants are defined before use. This check is primarily for debugging.
+        if (typeof MODEL_URL === 'undefined' || typeof MODEL_FILENAME === 'undefined') {
+            console.error("Initialization Error: MODEL_URL or MODEL_FILENAME are not defined.");
+            resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Initialization Error!</div>
+                                   <div class="muted">A core configuration variable (URL/Filename) is missing.</div>`;
+            return;
+        }
+
         const MAX_RETRIES = 5;
         let attempt = 0;
 
@@ -403,16 +410,21 @@
           } catch (e) {
             console.error(`Model load error on attempt ${attempt}:`, e);
             
-            // This is the common failure mode if files are missing/misnamed
+            // This is the common failure mode if files are missing/misnamed or badly formatted
             if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
-                resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found!</div>
-                                       <div class="muted">The file <strong>${fullModelPath}</strong> could not be found. Please double-check the filename's case and ensure the files are in the same folder as index.html.</div>`;
+                resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found (404)!</div>
+                                       <div class="muted">The file <strong>${fullModelPath}</strong> could not be found. Check the console and the model's location on GitHub.</div>`;
                 return; // Exit immediately on a clear 404/file error, no need to retry
+            }
+            if (e.message && e.message.includes('Improper config format')) {
+                 resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Format Error!</div>
+                                       <div class="muted">The <strong>model.json</strong> file is improperly formatted for <code>tf.loadLayersModel()</code>. You need to re-convert the model using the <strong>tfjs.converters.save_keras_model()</strong> function in Python, and re-upload the new files.</div>`;
+                return; // Exit immediately on a format error, no need to retry
             }
 
             if (attempt >= MAX_RETRIES) {
               resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Error!</div>
-                                     <div class="muted">Could not load model after ${MAX_RETRIES} tries. Check the console and ensure the model files (especially <strong>${MODEL_FILENAME}</strong>) exist and match the filename exactly.</div>`;
+                                     <div class="muted">Could not load model after ${MAX_RETRIES} tries. Check the console for full details.</div>`;
               return; // Exit function on final failure
             }
             
@@ -730,5 +742,3 @@
     </script>
   </body>
 </html>
-
-
