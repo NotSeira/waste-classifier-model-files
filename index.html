@@ -71,6 +71,9 @@
         align-items: center;
         gap: 8px;
       }
+      .muted {
+        opacity: 0.9;
+      }
       .result-row {
         display: flex;
         justify-content: space-between;
@@ -98,9 +101,6 @@
       .cat-non {
         background: #34495e;
       } /* dark gray for non-recyclable */
-      .muted {
-        opacity: 0.9;
-      }
 
       /* Bin indicators */
       .bins {
@@ -342,16 +342,13 @@
       const MODEL_INPUT_SIZE = 224; 
 
       // ----------------------------------------------------------------------
-      // >>> 🎯 CRITICAL FIX: Ensure both constants are defined <<<
+      // MODEL CONFIGURATION
       // ----------------------------------------------------------------------
       // Using the absolute URL for the GitHub Pages deployment.
-      const MODEL_URL = "https://notseira.github.io/waste-classifier/"; 
-      const MODEL_FILENAME = "model.json"; // This declaration was likely missing, causing the ReferenceError
-      // ----------------------------------------------------------------------
+      const MODEL_BASE_PATH = "https://notseira.github.io/waste-classifier-model-files/"; 
+      const MODEL_FILENAME = "model.json"; 
+      const FULL_MODEL_PATH = MODEL_BASE_PATH + MODEL_FILENAME;
 
-      // ----------------------------------------------------------------------
-      // >>> 🎯 STEP 2: VERIFIED CLASS LABELS FROM YOUR NOTEBOOK <<<
-      // ----------------------------------------------------------------------
       // Based on your notebook output (Classes found: {'Hazardous': 0, 'Non-Recyclable': 1, 'Organic': 2, 'Recyclable': 3}):
       const LABELS = [
         "Hazardous",       // Index 0
@@ -361,66 +358,59 @@
       ];
       // ----------------------------------------------------------------------
 
-      // Use this map to override the automatic categorization if your model's 
-      // output labels (top.className) need explicit mapping to a category.
-      const LABEL_TO_CATEGORY = {
-        // Example: "clean plastic bottle": "Recyclable", 
-      };
 
       // Load model silently
       async function initModel() {
-        // Ensure constants are defined before use. This check is primarily for debugging.
-        if (typeof MODEL_URL === 'undefined' || typeof MODEL_FILENAME === 'undefined') {
-            console.error("Initialization Error: MODEL_URL or MODEL_FILENAME are not defined.");
-            resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Initialization Error!</div>
-                                   <div class="muted">A core configuration variable (URL/Filename) is missing.</div>`;
-            return;
-        }
-
         const MAX_RETRIES = 5;
         let attempt = 0;
 
-        const fullModelPath = MODEL_URL + MODEL_FILENAME;
-
-        // Basic check for placeholder (already corrected, but good practice)
-        if (MODEL_URL.includes("YOUR_HOSTED_MODEL_URL")) {
+        // Basic check for placeholder
+        if (MODEL_BASE_PATH.includes("YOUR_HOSTED_MODEL_URL")) {
             console.error("⚠️ Model not loaded: Please replace 'YOUR_HOSTED_MODEL_URL' with your actual hosted model link.");
             resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model URL Missing!</div>
-                                 <div class="muted">Please update the <strong>MODEL_URL</strong> constant (around line 126) with your model's hosted public URL from GitHub Pages or another host.</div>`;
+                                 <div class="muted">Please update the <strong>MODEL_BASE_PATH</strong> constant with your model's hosted public URL.</div>`;
             return;
         }
 
         while (attempt < MAX_RETRIES) {
           attempt++;
           resultBox.innerHTML = `<div class="result-header">Loading Model... (Attempt ${attempt}/${MAX_RETRIES})</div>
-                                 <div class="muted">Fetching files from: <strong>${fullModelPath}</strong>. Please wait.</div>`;
-          console.log(`Attempting to load model from: ${fullModelPath}`);
+                                 <div class="muted">Fetching files from: <strong>${FULL_MODEL_PATH}</strong>. Please wait.</div>`;
+          console.log(`Attempting to load model from: ${FULL_MODEL_PATH}`);
 
           try {
-            // TFJS will attempt to load: [Base Path] + [Model Filename]
-            model = await tf.loadLayersModel(fullModelPath);
+            // ----------------------------------------------------------------
+            // >>> 🎯 CRITICAL FIX: Use tf.loadGraphModel instead of loadLayersModel <<<
+            // The "Improper config format" error indicates the model was saved 
+            // in a GraphModel format, which is not compatible with LayersModel.
+            // We use FULL_MODEL_PATH which points to the model.json file.
+            // ----------------------------------------------------------------
+            model = await tf.loadGraphModel(FULL_MODEL_PATH);
             
-            resultBox.innerHTML = `<div class="result-header">Ready</div>
+            // Check for correct input shape (optional but good sanity check)
+            // console.log("Model input shape:", model.inputs[0].shape); 
+            
+            resultBox.innerHTML = `<div class="result-header">✅ Ready</div>
                                    <div class="muted">Model loaded with ${LABELS.length} classes. Upload an image or start the webcam, then press Scan.</div>`;
             
-            console.log("Model loaded successfully.");
-            console.log("Hardcoded Model Labels:", LABELS);
+            console.log("Model loaded successfully using tf.loadGraphModel.");
             return; // Exit function on success
 
           } catch (e) {
             console.error(`Model load error on attempt ${attempt}:`, e);
             
-            // This is the common failure mode if files are missing/misnamed or badly formatted
-            if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
-                resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found (404)!</div>
-                                       <div class="muted">The file <strong>${fullModelPath}</strong> could not be found. Check the console and the model's location on GitHub.</div>`;
-                return; // Exit immediately on a clear 404/file error, no need to retry
-            }
+            // Specific error handling for the model loader change
             if (e.message && e.message.includes('Improper config format')) {
                  resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Format Error!</div>
-                                       <div class="muted">The <strong>model.json</strong> file is improperly formatted for <code>tf.loadLayersModel()</code>. You need to re-convert the model using the <strong>tfjs.converters.save_keras_model()</strong> function in Python, and re-upload the new files.</div>`;
+                                       <div class="muted">The model.json file is incompatible with the loader. If this persists, the model files need to be re-exported in the correct format (Layers Model) from your Python environment.</div>`;
                 return; // Exit immediately on a format error, no need to retry
             }
+             if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
+                resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found (404)!</div>
+                                       <div class="muted">The file <strong>${FULL_MODEL_PATH}</strong> could not be found. Check the console and the model's location on GitHub.</div>`;
+                return; // Exit immediately on a clear 404/file error, no need to retry
+            }
+
 
             if (attempt >= MAX_RETRIES) {
               resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model Error!</div>
@@ -428,7 +418,7 @@
               return; // Exit function on final failure
             }
             
-            // Exponential backoff: Wait 2s, 4s, 8s, 16s, ...
+            // Exponential backoff
             const delay = Math.pow(2, attempt) * 2000;
             await new Promise(resolve => setTimeout(resolve, delay));
           }
@@ -592,10 +582,13 @@
             const batched = normalized.expandDims(0); 
 
             // 5. Predict
+            // model.predict works for both LayersModel and GraphModel
             const rawPrediction = model.predict(batched);
 
             // 6. Get the raw probability data
             // Use the softMax function to get probabilities, then dataSync() to retrieve values
+            // GraphModel predictions may return a single Tensor or an array of Tensors.
+            // Since this is a simple classification model, we expect a single Tensor.
             const probabilities = rawPrediction.softmax().dataSync();
 
             // 7. Convert to structured prediction array
