@@ -347,9 +347,9 @@
       // This MUST be the public URL to the folder containing your 
       // 'model.json' and all 'group1-shardXofY.bin' files.
       //
-      // BASED ON YOUR REPOSITORY (waste-classifier-model-files) and assuming your username is NotSeira:
-      // You must replace 'NotSeira' with your actual GitHub username.
-      const MODEL_URL = "https://NotSeira.github.io/waste-classifier-model-files/";
+      // Using a RELATIVE path because the index.html is now hosted in the 
+      // same folder as the model files on GitHub Pages.
+      const MODEL_URL = "./"; // Changed to relative path
       
       // ----------------------------------------------------------------------
 
@@ -387,6 +387,7 @@
 
           // Using tf.loadLayersModel, which directly loads the model architecture and weights
           // It automatically finds the sharded files (group1-shardXofY.bin) referenced in model.json
+          // Note the use of "model.json" (lowercase) to match common conventions
           model = await tf.loadLayersModel(MODEL_URL + "model.json");
           
           resultBox.innerHTML = `<div class="result-header">Ready</div>
