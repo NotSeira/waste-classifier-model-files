@@ -342,16 +342,12 @@
       const MODEL_INPUT_SIZE = 224; 
 
       // ----------------------------------------------------------------------
-      // >>> 🎯 STEP 1: PASTE YOUR HOSTED MODEL URL HERE <<<
+      // >>> 🎯 STEP 1: CORRECTED MODEL URL PATH <<<
       // ----------------------------------------------------------------------
-      // This MUST be the public URL to the folder containing your 
-      // 'model.json' and all 'group1-shardXofY.bin' files.
-      //
-      // IMPORTANT: We are now explicitly setting the folder path 
-      // based on your GitHub repository name: 'waste-classifier-model-files'
-      const MODEL_FOLDER_NAME = "waste-classifier-model-files/"; 
-      const MODEL_URL = MODEL_FOLDER_NAME; // Use this as the base path
-      const MODEL_FILENAME = "model.json"; // Using standard lowercase filename
+      // The index.html and model.json are in the SAME folder, so we use the 
+      // relative path './' to look in the current directory.
+      const MODEL_URL = "./"; 
+      const MODEL_FILENAME = "model.json"; 
       // ----------------------------------------------------------------------
 
       // ----------------------------------------------------------------------
@@ -377,7 +373,7 @@
         const MAX_RETRIES = 5;
         let attempt = 0;
 
-        // Basic check for placeholder
+        // Basic check for placeholder (already corrected, but good practice)
         if (MODEL_URL.includes("YOUR_HOSTED_MODEL_URL")) {
             console.error("⚠️ Model not loaded: Please replace 'YOUR_HOSTED_MODEL_URL' with your actual hosted model link.");
             resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model URL Missing!</div>
@@ -388,11 +384,11 @@
         while (attempt < MAX_RETRIES) {
           attempt++;
           resultBox.innerHTML = `<div class="result-header">Loading Model... (Attempt ${attempt}/${MAX_RETRIES})</div>
-                                 <div class="muted">Fetching files from host: <strong>${MODEL_URL}</strong>. Please wait.</div>`;
+                                 <div class="muted">Fetching files from host: <strong>${MODEL_URL}${MODEL_FILENAME}</strong>. Please wait.</div>`;
 
           try {
             // TFJS will attempt to load: [Base Path] + [Model Filename]
-            // E.g., waste-classifier-model-files/model.json
+            // E.g., ./model.json (which points to the file in the same folder)
             model = await tf.loadLayersModel(MODEL_URL + MODEL_FILENAME);
             
             resultBox.innerHTML = `<div class="result-header">Ready</div>
@@ -405,10 +401,10 @@
           } catch (e) {
             console.error(`Model load error on attempt ${attempt}:`, e);
             
-            // Check for specific 404/file not found error
+            // This is the common failure mode if files are missing/misnamed
             if (e.message && (e.message.includes('404') || e.message.includes('file not found'))) {
                 resultBox.innerHTML = `<div class="result-header" style="color:#c0392b;">Model File Not Found!</div>
-                                       <div class="muted">The file <strong>${MODEL_URL}${MODEL_FILENAME}</strong> could not be found. Check the console and verify the filename's case and location in your GitHub repository.</div>`;
+                                       <div class="muted">The file <strong>${MODEL_URL}${MODEL_FILENAME}</strong> could not be found. Please double-check the filename's case and ensure the files are in the same folder as index.html.</div>`;
                 return; // Exit immediately on a clear 404/file error, no need to retry
             }
 
@@ -496,9 +492,6 @@
       }
 
       function categorize(label) {
-        // Since the model now predicts the high-level category (Hazardous, Organic, etc.), 
-        // we map it directly to the bin categories used in the UI.
-        
         // Map 'Organic' (Model Label) to 'Biodegradable' (UI Bin Name)
         if (label === "Organic") return "Biodegradable";
         
